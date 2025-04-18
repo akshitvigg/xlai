@@ -1,73 +1,74 @@
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
-import pandas as pd
-import polars as pl
-import os
+from tkinter import filedialog, ttk
 from ttkbootstrap import Style
+import polars as pl
+from tkinter import messagebox
 
-class ExcelFilterApp:
+class ExcelGodMode:
     def __init__(self, root):
         self.root = root
-        self.root.title("Excel Filter Tool")
-        self.root.geometry("1000x700")
-        self.style = Style("cyborg")
-        self.file_path = None
+        self.root.title("📂 Excel God Mode Viewer")
+        self.style = Style(theme="darkly")
+        self.root.geometry("1000x600")
+
         self.df = None
+        self.filter_vars = {}
 
-        self.filter_widgets = {}
+        # Top bar
+        top_frame = ttk.Frame(root)
+        top_frame.pack(fill='x', pady=10)
 
-        self.create_widgets()
+        ttk.Button(top_frame, text="🧾 Upload Excel", command=self.load_file).pack(side='left', padx=5)
+        ttk.Button(top_frame, text="🧹 Clear Filters", command=self.clear_filters).pack(side='left', padx=5)
+        ttk.Button(top_frame, text="💾 Download Filtered", command=self.download_filtered).pack(side='left', padx=5)
 
-    def create_widgets(self):
-        top_frame = ttk.Frame(self.root)
-        top_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Filter frame
+        self.frame_filters = ttk.Frame(root)
+        self.frame_filters.pack(fill='x', pady=5)
 
-        load_btn = ttk.Button(top_frame, text="Load Excel File", command=self.load_file)
-        load_btn.pack(side=tk.LEFT)
+        # Treeview frame with scrollbars
+        tree_frame = ttk.Frame(root)
+        tree_frame.pack(expand=True, fill='both', padx=10, pady=10)
 
-        export_btn = ttk.Button(top_frame, text="Export Filtered Data", command=self.export_data)
-        export_btn.pack(side=tk.LEFT, padx=10)
-
-        self.filter_frame = ttk.Labelframe(self.root, text="Filters")
-        self.filter_frame.pack(fill=tk.BOTH, expand=False, padx=10, pady=10)
-
-        apply_btn = ttk.Button(self.root, text="Apply Filters", command=self.apply_filters)
-        apply_btn.pack(pady=10)
-
-        self.result_label = ttk.Label(self.root, text="")
-        self.result_label.pack()
-
-        self.table_frame = ttk.Frame(self.root)
-        self.table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-
-        self.tree = None
+        self.tree = ttk.Treeview(tree_frame, show='headings')
+        vsb = ttk.Scrollbar(tree_frame, orient="vertical", command=self.tree.yview)
+        hsb = ttk.Scrollbar(tree_frame, orient="horizontal", command=self.tree.xview)
+        self.tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self.tree.grid(row=0, column=0, sticky='nsew')
+        vsb.grid(row=0, column=1, sticky='ns')
+        hsb.grid(row=1, column=0, sticky='ew')
+        tree_frame.rowconfigure(0, weight=1)
+        tree_frame.columnconfigure(0, weight=1)
 
     def load_file(self):
-        file = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
-        if not file:
+        file_path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx *.xls")])
+        if not file_path:
             return
 
         try:
-            self.df = pl.read_excel(file)
-            self.file_path = file
-            self.setup_filters()
-            self.result_label.config(text="File loaded successfully.")
+            self.df = pl.read_excel(file_path)
         except Exception as e:
-            messagebox.showerror("Error", str(e))
+            messagebox.showerror("Read Error", f"Failed to load Excel: {e}")
+            return
 
-    def setup_filters(self):
-        for widget in self.filter_frame.winfo_children():
+        self.build_filter_fields()
+        self.update_treeview(self.df)
+
+    def build_filter_fields(self):
+        for widget in self.frame_filters.winfo_children():
             widget.destroy()
 
-        self.filter_widgets.clear()
+        self.filter_vars.clear()
 
-        for i, col in enumerate(self.df.columns):
-            label = ttk.Label(self.filter_frame, text=col)
-            label.grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
-
-            entry = ttk.Entry(self.filter_frame)
-            entry.grid(row=i, column=1, padx=5, pady=2)
-            self.filter_widgets[col] = entry
+        for col in self.df.columns:
+            frame = ttk.Frame(self.frame_filters)
+            frame.pack(side='left', padx=4)
+            ttk.Label(frame, text=col).pack()
+            var = tk.StringVar()
+            entry = ttk.Entry(frame, textvariable=var, width=15)
+            entry.pack()
+            entry.bind("<KeyRelease>", lambda e: self.apply_filters())
+            self.filter_vars[col] = var
 
     def apply_filters(self):
         if self.df is None:
@@ -75,47 +76,52 @@ class ExcelFilterApp:
 
         filtered_df = self.df
 
-        for col, widget in self.filter_widgets.items():
-            val = widget.get().strip()
+        for col, var in self.filter_vars.items():
+            val = var.get().strip().lower()
             if val:
-                filtered_df = filtered_df.filter(pl.col(col).cast(str).str.contains(val, case=False))
+                try:
+                    filtered_df = filtered_df.filter(
+                        pl.col(col).cast(str).str.to_lowercase().str.contains(val)
+                    )
+                except Exception as e:
+                    print(f"Filter error in {col}: {e}")
 
-        self.filtered_df = filtered_df
+        self.update_treeview(filtered_df)
 
-        self.show_table(filtered_df)
-        self.result_label.config(text=f"Filtered Rows: {len(filtered_df)}")
+    def update_treeview(self, data):
+        self.tree.delete(*self.tree.get_children())
+        self.tree["columns"] = data.columns
 
-    def show_table(self, df):
-        if self.tree:
-            self.tree.destroy()
-
-        self.tree = ttk.Treeview(self.table_frame, columns=df.columns, show="headings")
-        self.tree.pack(fill=tk.BOTH, expand=True)
-
-        for col in df.columns:
+        for col in data.columns:
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=120, anchor="w")
+            self.tree.column(col, width=120, anchor='w')
 
-        for row in df.iter_rows():
-            self.tree.insert("", tk.END, values=row)
+        for row in data.iter_rows(named=True):
+            self.tree.insert("", "end", values=list(row.values()))
 
-    def export_data(self):
-        if not hasattr(self, 'filtered_df'):
-            messagebox.showwarning("Warning", "No filtered data to export!")
+        self.filtered_df = data
+
+    def clear_filters(self):
+        for var in self.filter_vars.values():
+            var.set("")
+        self.update_treeview(self.df)
+
+    def download_filtered(self):
+        if not hasattr(self, 'filtered_df') or self.filtered_df is None:
+            messagebox.showwarning("No Data", "No filtered data to save.")
             return
 
-        file = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
-        if not file:
-            return
+        save_path = filedialog.asksaveasfilename(defaultextension=".xlsx",
+                                                 filetypes=[("Excel files", "*.xlsx")],
+                                                 title="Save filtered data as")
+        if save_path:
+            try:
+                self.filtered_df.write_excel(save_path)
+                messagebox.showinfo("Saved", f"Filtered data saved to:\n{save_path}")
+            except Exception as e:
+                messagebox.showerror("Save Error", f"Failed to save: {e}")
 
-        try:
-            filtered_pd = self.filtered_df.to_pandas()
-            filtered_pd.to_excel(file, index=False)
-            messagebox.showinfo("Success", "Data exported successfully!")
-        except Exception as e:
-            messagebox.showerror("Export Error", str(e))
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     root = tk.Tk()
-    app = ExcelFilterApp(root)
+    app = ExcelGodMode(root)
     root.mainloop()
