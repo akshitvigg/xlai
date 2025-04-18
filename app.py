@@ -85,7 +85,6 @@ class ExcelFilterApp:
             filtered_df.to_excel(file, index=False)
             messagebox.showinfo("Success", "Filtered data exported successfully!")
 
-# Run app
 if __name__ == "__main__":
     root = tk.Tk()
     root.geometry("1000x600")
@@ -105,23 +104,23 @@ class ExcelFilterApp:
         self.setup_ui()
 
     def setup_ui(self):
-        # Load button
+
         load_btn = tk.Button(self.root, text="Upload Excel File", command=self.load_file)
         load_btn.pack(pady=10)
 
-        # Frame for filters
+      
         self.filter_frame = tk.Frame(self.root)
         self.filter_frame.pack(pady=10)
 
-        # Search button
+        
         self.search_btn = tk.Button(self.root, text="Search", command=self.apply_filters, state='disabled')
         self.search_btn.pack(pady=5)
 
-        # Table
+    
         self.tree = ttk.Treeview(self.root)
         self.tree.pack(padx=10, pady=10, fill='both', expand=True)
 
-        # Export button
+      
         self.export_btn = tk.Button(self.root, text="Export Filtered Data", command=self.export_data, state='disabled')
         self.export_btn.pack(pady=5)
 
@@ -139,7 +138,7 @@ class ExcelFilterApp:
             messagebox.showerror("Error", f"Failed to load file:\n{e}")
 
     def build_filters(self):
-        # Clear previous filters
+
         for widget in self.filter_frame.winfo_children():
             widget.destroy()
         self.filter_entries.clear()
@@ -178,7 +177,7 @@ class ExcelFilterApp:
             filtered_df.to_excel(file, index=False)
             messagebox.showinfo("Success", "Filtered data exported successfully!")
 
-# Run app
+
 if __name__ == "__main__":
     root = tk.Tk()
     root.geometry("1000x600")
