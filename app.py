@@ -9,8 +9,8 @@ class ExcelFilterApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Excel Filter Tool")
-        self.root.geometry("800x600")
-        self.style = Style("cosmo")
+        self.root.geometry("1000x700")
+        self.style = Style("cyborg")
         self.file_path = None
         self.df = None
 
@@ -29,13 +29,18 @@ class ExcelFilterApp:
         export_btn.pack(side=tk.LEFT, padx=10)
 
         self.filter_frame = ttk.Labelframe(self.root, text="Filters")
-        self.filter_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.filter_frame.pack(fill=tk.BOTH, expand=False, padx=10, pady=10)
 
         apply_btn = ttk.Button(self.root, text="Apply Filters", command=self.apply_filters)
         apply_btn.pack(pady=10)
 
         self.result_label = ttk.Label(self.root, text="")
         self.result_label.pack()
+
+        self.table_frame = ttk.Frame(self.root)
+        self.table_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.tree = None
 
     def load_file(self):
         file = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
@@ -60,11 +65,8 @@ class ExcelFilterApp:
             label = ttk.Label(self.filter_frame, text=col)
             label.grid(row=i, column=0, sticky=tk.W, padx=5, pady=2)
 
-            unique_values = self.df[col].unique().to_list()
-            entry = ttk.Combobox(self.filter_frame, values=["Any"] + [str(v) for v in unique_values])
-            entry.set("Any")
+            entry = ttk.Entry(self.filter_frame)
             entry.grid(row=i, column=1, padx=5, pady=2)
-
             self.filter_widgets[col] = entry
 
     def apply_filters(self):
@@ -74,12 +76,28 @@ class ExcelFilterApp:
         filtered_df = self.df
 
         for col, widget in self.filter_widgets.items():
-            val = widget.get()
-            if val != "Any":
-                filtered_df = filtered_df.filter(pl.col(col).cast(str) == str(val))
+            val = widget.get().strip()
+            if val:
+                filtered_df = filtered_df.filter(pl.col(col).cast(str).str.contains(val, case=False))
 
         self.filtered_df = filtered_df
+
+        self.show_table(filtered_df)
         self.result_label.config(text=f"Filtered Rows: {len(filtered_df)}")
+
+    def show_table(self, df):
+        if self.tree:
+            self.tree.destroy()
+
+        self.tree = ttk.Treeview(self.table_frame, columns=df.columns, show="headings")
+        self.tree.pack(fill=tk.BOTH, expand=True)
+
+        for col in df.columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=120, anchor="w")
+
+        for row in df.iter_rows():
+            self.tree.insert("", tk.END, values=row)
 
     def export_data(self):
         if not hasattr(self, 'filtered_df'):
